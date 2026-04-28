@@ -51,31 +51,21 @@ document.addEventListener("keyup", (e) => {
 function shoot() {
   if (shootCooldown > 0) return;
 
-  // dual bullets
+  // single center bullet
   bullets.push({
-    x: player.x + 5,
+    x: player.x + player.width / 2 - 3,
     y: player.y,
-    width: 5,
-    height: 10,
-    speed: 7
-  });
-
-  bullets.push({
-    x: player.x + player.width - 10,
-    y: player.y,
-    width: 5,
+    width: 6,
     height: 10,
     speed: 7
   });
 
   shootCooldown = 10;
-  player.y += 3;
-  shake = 5;
+  shake = 3;
 }
 
 function enemyShoot(enemy) {
   if (enemy.type === "double") {
-    // double shooter
     enemyBullets.push({
       x: enemy.x + 5,
       y: enemy.y + enemy.height,
@@ -92,7 +82,6 @@ function enemyShoot(enemy) {
       speed: 4
     });
   } else {
-    // normal shooter
     enemyBullets.push({
       x: enemy.x + enemy.width / 2 - 3,
       y: enemy.y + enemy.height,
@@ -136,11 +125,12 @@ function update() {
   player.x += player.dx;
   player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
 
+  // LOCK Y (fix disappearing bug)
+  player.y = canvas.height - 60;
+
   // cooldowns
   if (shootCooldown > 0) shootCooldown--;
   if (player.hitCooldown > 0) player.hitCooldown--;
-
-  if (player.y < canvas.height - 60) player.y += 1;
 
   // bullets
   bullets = bullets.filter(b => {
@@ -183,7 +173,7 @@ function update() {
       player.health--;
       player.hitCooldown = 20;
       createExplosion(player.x, player.y);
-      shake = 8;
+      shake = 6;
 
       if (player.health <= 0) gameOver = true;
 
@@ -231,18 +221,18 @@ function draw() {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // player
-  ctx.fillStyle = player.hitCooldown > 0 ? "white" : "cyan";
+  // player (GREEN)
+  ctx.fillStyle = player.hitCooldown > 0 ? "white" : "lime";
   ctx.fillRect(player.x, player.y, player.width, player.height);
 
-  ctx.fillStyle = "blue";
+  ctx.fillStyle = "darkgreen";
   ctx.fillRect(player.x + player.width / 2 - 5, player.y - 5, 10, 5);
 
   // bullets
   ctx.fillStyle = "yellow";
   bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
 
-  // enemies (different colors)
+  // enemies
   enemies.forEach(e => {
     ctx.fillStyle = e.type === "double" ? "purple" : "red";
     ctx.fillRect(e.x, e.y, e.width, e.height);
