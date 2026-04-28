@@ -51,7 +51,7 @@ document.addEventListener("keyup", (e) => {
 function shoot() {
   if (shootCooldown > 0) return;
 
-  // left bullet
+  // dual bullets
   bullets.push({
     x: player.x + 5,
     y: player.y,
@@ -60,7 +60,6 @@ function shoot() {
     speed: 7
   });
 
-  // right bullet
   bullets.push({
     x: player.x + player.width - 10,
     y: player.y,
@@ -70,22 +69,38 @@ function shoot() {
   });
 
   shootCooldown = 10;
-
-  // recoil
   player.y += 3;
-
-  // shake
   shake = 5;
 }
 
 function enemyShoot(enemy) {
-  enemyBullets.push({
-    x: enemy.x + enemy.width / 2 - 3,
-    y: enemy.y + enemy.height,
-    width: 6,
-    height: 10,
-    speed: 4
-  });
+  if (enemy.type === "double") {
+    // double shooter
+    enemyBullets.push({
+      x: enemy.x + 5,
+      y: enemy.y + enemy.height,
+      width: 5,
+      height: 10,
+      speed: 4
+    });
+
+    enemyBullets.push({
+      x: enemy.x + enemy.width - 10,
+      y: enemy.y + enemy.height,
+      width: 5,
+      height: 10,
+      speed: 4
+    });
+  } else {
+    // normal shooter
+    enemyBullets.push({
+      x: enemy.x + enemy.width / 2 - 3,
+      y: enemy.y + enemy.height,
+      width: 6,
+      height: 10,
+      speed: 4
+    });
+  }
 }
 
 function spawnEnemy() {
@@ -96,7 +111,8 @@ function spawnEnemy() {
     y: 0,
     width: 40,
     height: 30,
-    speed: 2 + Math.random() * 1.5
+    speed: 2 + Math.random() * 1.5,
+    type: Math.random() < 0.3 ? "double" : "normal"
   });
 }
 
@@ -124,7 +140,6 @@ function update() {
   if (shootCooldown > 0) shootCooldown--;
   if (player.hitCooldown > 0) player.hitCooldown--;
 
-  // recoil reset
   if (player.y < canvas.height - 60) player.y += 1;
 
   // bullets
@@ -137,9 +152,8 @@ function update() {
   enemies = enemies.filter(e => {
     e.y += e.speed;
 
-    if (Math.random() < 0.01) enemyShoot(e);
+    if (Math.random() < 0.02) enemyShoot(e);
 
-    // touch = instant death
     if (
       player.x < e.x + e.width &&
       player.x + player.width > e.x &&
@@ -190,8 +204,7 @@ function update() {
         b.y + b.height > e.y
       ) {
         createExplosion(e.x, e.y);
-        score += 10;
-        shake = 6;
+        score += e.type === "double" ? 20 : 10;
 
         enemies.splice(ei, 1);
         bullets.splice(bi, 1);
@@ -212,14 +225,13 @@ function update() {
 function draw() {
   ctx.save();
 
-  // screen shake
   let dx = (Math.random() - 0.5) * shake;
   let dy = (Math.random() - 0.5) * shake;
   ctx.translate(dx, dy);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // player (blue ship)
+  // player
   ctx.fillStyle = player.hitCooldown > 0 ? "white" : "cyan";
   ctx.fillRect(player.x, player.y, player.width, player.height);
 
@@ -230,9 +242,11 @@ function draw() {
   ctx.fillStyle = "yellow";
   bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
 
-  // enemies
-  ctx.fillStyle = "red";
-  enemies.forEach(e => ctx.fillRect(e.x, e.y, e.width, e.height));
+  // enemies (different colors)
+  enemies.forEach(e => {
+    ctx.fillStyle = e.type === "double" ? "purple" : "red";
+    ctx.fillRect(e.x, e.y, e.width, e.height);
+  });
 
   // enemy bullets
   ctx.fillStyle = "white";
@@ -248,7 +262,6 @@ function draw() {
   ctx.fillText("Score: " + score, 10, 25);
   ctx.fillText("Health: " + player.health, 10, 50);
 
-  // GAME OVER
   if (gameOver) {
     ctx.font = "40px Arial";
     ctx.fillText("GAME OVER", canvas.width / 2 - 130, canvas.height / 2);
