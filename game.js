@@ -31,6 +31,11 @@ let score = 0;
 let shootCooldown = 0;
 let shake = 0;
 
+// ---------------- POWER SYSTEM ----------------
+let killStreak = 0;
+let powerMode = false;
+let powerTimer = 0;
+
 // ---------------- INPUT ----------------
 document.addEventListener("keydown", (e) => {
   if (e.key.toLowerCase() === "a") player.dx = -player.speed;
@@ -51,14 +56,33 @@ document.addEventListener("keyup", (e) => {
 function shoot() {
   if (shootCooldown > 0) return;
 
-  // single center bullet
-  bullets.push({
-    x: player.x + player.width / 2 - 3,
-    y: player.y,
-    width: 6,
-    height: 10,
-    speed: 7
-  });
+  if (powerMode) {
+    // dual bullets
+    bullets.push({
+      x: player.x + 5,
+      y: player.y,
+      width: 5,
+      height: 10,
+      speed: 7
+    });
+
+    bullets.push({
+      x: player.x + player.width - 10,
+      y: player.y,
+      width: 5,
+      height: 10,
+      speed: 7
+    });
+  } else {
+    // single bullet
+    bullets.push({
+      x: player.x + player.width / 2 - 3,
+      y: player.y,
+      width: 6,
+      height: 10,
+      speed: 7
+    });
+  }
 
   shootCooldown = 10;
   shake = 3;
@@ -125,12 +149,21 @@ function update() {
   player.x += player.dx;
   player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
 
-  // LOCK Y (fix disappearing bug)
+  // lock Y
   player.y = canvas.height - 60;
 
   // cooldowns
   if (shootCooldown > 0) shootCooldown--;
   if (player.hitCooldown > 0) player.hitCooldown--;
+
+  // power timer
+  if (powerMode) {
+    powerTimer--;
+    if (powerTimer <= 0) {
+      powerMode = false;
+      killStreak = 0;
+    }
+  }
 
   // bullets
   bullets = bullets.filter(b => {
@@ -175,6 +208,8 @@ function update() {
       createExplosion(player.x, player.y);
       shake = 6;
 
+      killStreak = 0;
+
       if (player.health <= 0) gameOver = true;
 
     } else if (b.y < canvas.height) {
@@ -195,6 +230,13 @@ function update() {
       ) {
         createExplosion(e.x, e.y);
         score += e.type === "double" ? 20 : 10;
+
+        killStreak++;
+
+        if (killStreak >= 5 && !powerMode) {
+          powerMode = true;
+          powerTimer = 600; // 10 sec
+        }
 
         enemies.splice(ei, 1);
         bullets.splice(bi, 1);
@@ -221,11 +263,18 @@ function draw() {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // player (GREEN)
-  ctx.fillStyle = player.hitCooldown > 0 ? "white" : "lime";
+  // blinking effect
+  let blink = powerMode && powerTimer < 120 && Math.floor(powerTimer / 10) % 2 === 0;
+
+  if (powerMode) {
+    ctx.fillStyle = blink ? "white" : "cyan";
+  } else {
+    ctx.fillStyle = player.hitCooldown > 0 ? "white" : "lime";
+  }
+
   ctx.fillRect(player.x, player.y, player.width, player.height);
 
-  ctx.fillStyle = "darkgreen";
+  ctx.fillStyle = powerMode ? "blue" : "darkgreen";
   ctx.fillRect(player.x + player.width / 2 - 5, player.y - 5, 10, 5);
 
   // bullets
@@ -251,6 +300,7 @@ function draw() {
   ctx.font = "20px Arial";
   ctx.fillText("Score: " + score, 10, 25);
   ctx.fillText("Health: " + player.health, 10, 50);
+  ctx.fillText("Streak: " + killStreak, 10, 75);
 
   if (gameOver) {
     ctx.font = "40px Arial";
@@ -290,6 +340,10 @@ function restartGame() {
   score = 0;
   shootCooldown = 0;
   shake = 0;
+
+  killStreak = 0;
+  powerMode = false;
+  powerTimer = 0;
 
   gameOver = false;
 }
