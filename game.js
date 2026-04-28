@@ -31,6 +31,11 @@ let score = 0;
 let shootCooldown = 0;
 let shake = 0;
 
+// ---------------- POWER SYSTEM ----------------
+let killStreak = 0;
+let powerMode = false;
+let powerTimer = 0;
+
 // ---------------- INPUT ----------------
 document.addEventListener("keydown", (e) => {
   if (e.key.toLowerCase() === "a") player.dx = -player.speed;
@@ -51,41 +56,64 @@ document.addEventListener("keyup", (e) => {
 function shoot() {
   if (shootCooldown > 0) return;
 
-  // left bullet
-  bullets.push({
-    x: player.x + 5,
-    y: player.y,
-    width: 5,
-    height: 10,
-    speed: 7
-  });
+  if (powerMode) {
+    // dual bullets
+    bullets.push({
+      x: player.x + 5,
+      y: player.y,
+      width: 5,
+      height: 10,
+      speed: 7
+    });
 
-  // right bullet
-  bullets.push({
-    x: player.x + player.width - 10,
-    y: player.y,
-    width: 5,
-    height: 10,
-    speed: 7
-  });
+    bullets.push({
+      x: player.x + player.width - 10,
+      y: player.y,
+      width: 5,
+      height: 10,
+      speed: 7
+    });
+  } else {
+    // single bullet
+    bullets.push({
+      x: player.x + player.width / 2 - 3,
+      y: player.y,
+      width: 6,
+      height: 10,
+      speed: 7
+    });
+  }
 
   shootCooldown = 10;
-
-  // recoil
-  player.y += 3;
-
-  // shake
-  shake = 5;
+  shake = 3;
 }
 
 function enemyShoot(enemy) {
-  enemyBullets.push({
-    x: enemy.x + enemy.width / 2 - 3,
-    y: enemy.y + enemy.height,
-    width: 6,
-    height: 10,
-    speed: 4
-  });
+  if (enemy.type === "double") {
+    enemyBullets.push({
+      x: enemy.x + 5,
+      y: enemy.y + enemy.height,
+      width: 5,
+      height: 10,
+      speed: 4
+    });
+
+    enemyBullets.push({
+      x: enemy.x + enemy.width - 10,
+      y: enemy.y + enemy.height,
+      width: 5,
+      height: 10,
+      speed: 4
+    });
+  } else {
+    enemyBullets.push({
+      x: enemy.x + enemy.width / 2 - 3,
+      y: enemy.y + enemy.height,
+      width: 6,
+      height: 10,
+      speed: 4
+    });
+  }
 }
 
 function spawnEnemy() {
@@ -96,7 +124,8 @@ function spawnEnemy() {
     y: 0,
     width: 40,
     height: 30,
-    speed: 2 + Math.random() * 1.5
+    speed: 2 + Math.random() * 1.5,
+    type: Math.random() < 0.3 ? "double" : "normal"
   });
 }
 
@@ -120,12 +149,21 @@ function update() {
   player.x += player.dx;
   player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
 
+  // lock Y
+  player.y = canvas.height - 60;
+
   // cooldowns
   if (shootCooldown > 0) shootCooldown--;
   if (player.hitCooldown > 0) player.hitCooldown--;
 
-  // recoil reset
-  if (player.y < canvas.height - 60) player.y += 1;
+  // power timer
+  if (powerMode) {
+    powerTimer--;
+    if (powerTimer <= 0) {
+      powerMode = false;
+      killStreak = 0;
+    }
+  }
 
   // bullets
   bullets = bullets.filter(b => {
@@ -137,9 +175,8 @@ function update() {
   enemies = enemies.filter(e => {
     e.y += e.speed;
 
-    if (Math.random() < 0.01) enemyShoot(e);
+    if (Math.random() < 0.02) enemyShoot(e);
 
-    // touch = instant death
     if (
       player.x < e.x + e.width &&
       player.x + player.width > e.x &&
@@ -169,7 +206,9 @@ function update() {
       player.health--;
       player.hitCooldown = 20;
       createExplosion(player.x, player.y);
-      shake = 8;
+      shake = 6;
+
+      killStreak = 0;
 
       if (player.health <= 0) gameOver = true;
 
@@ -190,8 +229,14 @@ function update() {
         b.y + b.height > e.y
       ) {
         createExplosion(e.x, e.y);
-        score += 10;
-        shake = 6;
+        score += e.type === "double" ? 20 : 10;
+
+        killStreak++;
+
+        if (killStreak >= 5 && !powerMode) {
+          powerMode = true;
+          powerTimer = 600; // 10 sec
+        }
 
         enemies.splice(ei, 1);
         bullets.splice(bi, 1);
@@ -212,18 +257,24 @@ function update() {
 function draw() {
   ctx.save();
 
-  // screen shake
   let dx = (Math.random() - 0.5) * shake;
   let dy = (Math.random() - 0.5) * shake;
   ctx.translate(dx, dy);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // player (blue ship)
-  ctx.fillStyle = player.hitCooldown > 0 ? "white" : "cyan";
+  // blinking effect
+  let blink = powerMode && powerTimer < 120 && Math.floor(powerTimer / 10) % 2 === 0;
+
+  if (powerMode) {
+    ctx.fillStyle = blink ? "white" : "cyan";
+  } else {
+    ctx.fillStyle = player.hitCooldown > 0 ? "white" : "lime";
+  }
+
   ctx.fillRect(player.x, player.y, player.width, player.height);
 
-  ctx.fillStyle = "blue";
+  ctx.fillStyle = powerMode ? "blue" : "darkgreen";
   ctx.fillRect(player.x + player.width / 2 - 5, player.y - 5, 10, 5);
 
   // bullets
@@ -231,8 +282,10 @@ function draw() {
   bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
 
   // enemies
-  ctx.fillStyle = "red";
-  enemies.forEach(e => ctx.fillRect(e.x, e.y, e.width, e.height));
+  enemies.forEach(e => {
+    ctx.fillStyle = e.type === "double" ? "purple" : "red";
+    ctx.fillRect(e.x, e.y, e.width, e.height);
+  });
 
   // enemy bullets
   ctx.fillStyle = "white";
@@ -247,8 +300,8 @@ function draw() {
   ctx.font = "20px Arial";
   ctx.fillText("Score: " + score, 10, 25);
   ctx.fillText("Health: " + player.health, 10, 50);
+  ctx.fillText("Streak: " + killStreak, 10, 75);
 
-  // GAME OVER
   if (gameOver) {
     ctx.font = "40px Arial";
     ctx.fillText("GAME OVER", canvas.width / 2 - 130, canvas.height / 2);
@@ -287,6 +340,10 @@ function restartGame() {
   score = 0;
   shootCooldown = 0;
   shake = 0;
+
+  killStreak = 0;
+  powerMode = false;
+  powerTimer = 0;
 
   gameOver = false;
 }
